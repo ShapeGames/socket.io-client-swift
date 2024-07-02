@@ -23,7 +23,6 @@
 //  THE SOFTWARE.
 
 import Foundation
-import Starscream
 
 /// The socket.io version being used.
 public enum SocketIOVersion: Int {
@@ -100,7 +99,7 @@ public enum SocketIOClientOption : ClientOption {
     case secure(Bool)
 
     /// Allows you to set which certs are valid. Useful for SSL pinning.
-    case security(CertificatePinning)
+//    case security(CertificatePinning)
 
     /// If you're using a self-signed set. Only use for development.
     case selfSigned(Bool)
@@ -157,8 +156,8 @@ public enum SocketIOClientOption : ClientOption {
             description = "secure"
         case .selfSigned:
             description = "selfSigned"
-        case .security:
-            description = "security"
+//        case .security:
+//            description = "security"
         case .sessionDelegate:
             description = "sessionDelegate"
         case .enableSOCKSProxy:
@@ -210,8 +209,8 @@ public enum SocketIOClientOption : ClientOption {
             value = factor
         case let .secure(secure):
             value = secure
-        case let .security(security):
-            value = security
+//        case let .security(security):
+//            value = security
         case let .selfSigned(signed):
             value = signed
         case let .sessionDelegate(delegate):

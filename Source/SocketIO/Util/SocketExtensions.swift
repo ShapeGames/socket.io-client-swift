@@ -23,7 +23,6 @@
 //  THE SOFTWARE.
 
 import Foundation
-import Starscream
 
 enum JSONError : Error {
     case notArray
@@ -77,8 +76,8 @@ extension Dictionary where Key == String, Value == Any {
             return .randomizationFactor(factor)
         case let ("secure", secure as Bool):
             return .secure(secure)
-        case let ("security", security as CertificatePinning):
-            return .security(security)
+//        case let ("security", security as CertificatePinning):
+//            return .security(security)
         case let ("selfSigned", selfSigned as Bool):
             return .selfSigned(selfSigned)
         case let ("sessionDelegate", delegate as URLSessionDelegate):

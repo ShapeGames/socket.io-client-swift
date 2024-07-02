@@ -79,7 +79,7 @@ github "socketio/socket.io-client-swift" ~> 15.2.0
 
 Run `carthage update --platform ios,macosx`.
 
-Add the `Starscream` and `SocketIO` frameworks to your projects and follow the usual Carthage process.
+Add the `SocketIO` framework to your projects and follow the usual Carthage process.
 
 ### CocoaPods 1.0.0 or later
 Create `Podfile` and add `pod 'Socket.IO-Client-Swift'`:

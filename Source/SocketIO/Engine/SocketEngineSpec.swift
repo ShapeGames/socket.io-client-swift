@@ -24,7 +24,6 @@
 //
 
 import Foundation
-import Starscream
 
 /// Specifies a SocketEngine.
 public protocol SocketEngineSpec: AnyObject {
@@ -89,7 +88,7 @@ public protocol SocketEngineSpec: AnyObject {
     var websocket: Bool { get }
 
     /// The WebSocket for this engine.
-    var ws: WebSocket? { get }
+    var ws: URLSessionWebSocketTask? { get }
 
     // MARK: Initializers
 

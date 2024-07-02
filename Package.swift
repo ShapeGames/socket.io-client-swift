@@ -4,14 +4,14 @@ import PackageDescription
 
 let package = Package(
     name: "SocketIO",
+    platforms: [.iOS(.v13)],
     products: [
         .library(name: "SocketIO", targets: ["SocketIO"])
     ],
     dependencies: [
-        .package(url: "https://github.com/daltoniam/Starscream", .exactItem("4.0.6")),
     ],
     targets: [
-        .target(name: "SocketIO", dependencies: ["Starscream"]),
+        .target(name: "SocketIO"),
         .testTarget(name: "TestSocketIO", dependencies: ["SocketIO"]),
     ]
 )

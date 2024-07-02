@@ -24,7 +24,6 @@
 //
 
 import Foundation
-import Starscream
 
 /// Protocol that is used to implement socket.io WebSocket support
 public protocol SocketEngineWebsocket: SocketEngineSpec {
@@ -72,15 +71,23 @@ extension SocketEngineWebsocket {
     ) {
         DefaultSocketLogger.Logger.log("Sending ws: \(str) as type: \(type.rawValue)", type: "SocketEngineWebSocket")
 
-        ws?.write(string: "\(type.rawValue)\(str)")
+        let group = DispatchGroup()
+
+        group.enter()
+        ws?.send(.string("\(type.rawValue)\(str)")) { _ in
+            group.leave()
+        }
 
         for item in data {
             if case let .left(bin) = createBinaryDataForSend(using: item) {
-                ws?.write(data: bin, completion: completion)
+                group.enter()
+                ws?.send(.data(bin)) { _ in
+                    group.leave()
+                }
             }
         }
 
-        if data.count == 0 {
+        group.notify(queue: .main) {
             completion?()
         }
     }

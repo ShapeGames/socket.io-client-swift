@@ -24,11 +24,10 @@
 
 import Dispatch
 import Foundation
-import Starscream
 
 /// The class that handles the engine.io protocol and transports.
 /// See `SocketEnginePollable` and `SocketEngineWebsocket` for transport specific methods.
-open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
+open class SocketEngine: NSObject, URLSessionWebSocketDelegate, URLSessionDelegate,
                          SocketEnginePollable, SocketEngineWebsocket, ConfigSettable {
   
   
@@ -127,7 +126,10 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
     public private(set) var enableSOCKSProxy = false
 
     /// The WebSocket for this engine.
-    public private(set) var ws: WebSocket?
+    public private(set) var ws: URLSessionWebSocketTask?
+
+    /// The URLSession for WebSockets
+    public private(set) var wsSession: URLSession?
 
     /// Whether or not the WebSocket is currently connected.
     public private(set) var wsConnected = false
@@ -151,7 +153,7 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
     private var pongsMissedMax = 0
     private var probeWait = ProbeWaitQueue()
     private var secure = false
-    private var certPinner: CertificatePinning?
+//    private var certPinner: CertificatePinning?
     private var selfSigned = false
 
     // MARK: Initializers
@@ -225,7 +227,7 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
         invalidated = true
         connected = false
 
-        ws?.disconnect()
+        ws?.cancel(with: .normalClosure, reason: nil)
         stopPolling()
         client?.engineDidClose(reason: reason)
     }
@@ -312,11 +314,18 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
             includingCookies: session?.configuration.httpCookieStorage?.cookies(for: urlPollingWithSid)
         )
 
-        ws = WebSocket(request: req, certPinner: certPinner, compressionHandler: compress ? WSCompression() : nil, useCustomEngine: useCustomEngine)
-        ws?.callbackQueue = engineQueue
-        ws?.delegate = self
+        let wsSession = Foundation.URLSession(
+            configuration: .default,
+            delegate: self,
+            delegateQueue: .current
+        )
+        self.wsSession = wsSession
 
-        ws?.connect()
+        ws = wsSession.webSocketTask(with: req)
+
+        receiveMessage(task: ws!)
+
+        ws?.resume()
     }
 
     /// Called when an error happens during execution. Causes a disconnection.
@@ -401,7 +410,9 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
         guard let ws = self.ws else { return }
 
         for msg in postWait {
-            ws.write(string: msg.msg, completion: msg.completion)
+            ws.send(.string(msg.msg)) { _ in
+                msg.completion?()
+            }
         }
 
         postWait.removeAll(keepingCapacity: false)
@@ -623,8 +634,8 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
                 self.secure = secure
             case let .selfSigned(selfSigned):
                 self.selfSigned = selfSigned
-            case let .security(pinner):
-                self.certPinner = pinner
+//            case let .security(pinner):
+//                self.certPinner = pinner
             case .compress:
                 self.compress = true
             case .enableSOCKSProxy:
@@ -681,6 +692,43 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
         }
     }
 
+    // MARK: URLSessionWebSocketDelegate
+
+    public func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        wsConnected = true
+        self.client?.engineDidWebsocketUpgrade(headers: [:]) // TODO: Headers?
+        websocketDidConnect()
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        switch closeCode {
+        case .normalClosure, .goingAway:
+            wsConnected = false
+            websocketDidDisconnect(error: nil)
+        default:
+            wsConnected = false
+            websocketDidDisconnect(error: EngineError.canceled)
+        }
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        wsConnected = false
+        websocketDidDisconnect(error: EngineError.canceled)
+    }
+
     // WebSocket Methods
 
     private func websocketDidConnect() {
@@ -712,12 +760,30 @@ open class SocketEngine: NSObject, WebSocketDelegate, URLSessionDelegate,
         connected = false
         polling = true
 
-        if let error = error as? WSError {
-            didError(reason: "\(error.message). code=\(error.code), type=\(error.type)")
-        } else if let reason = error?.localizedDescription {
+        if let reason = error?.localizedDescription {
             didError(reason: reason)
         } else {
             client?.engineDidClose(reason: "Socket Disconnected")
+        }
+    }
+
+    private func receiveMessage(task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let message):
+                switch message {
+                case .data(let data):
+                    self.parseEngineData(data)
+                case .string(let string):
+                    self.parseEngineMessage(string)
+                @unknown default:
+                    break
+                }
+                self.receiveMessage(task: task)
+            case .failure(let error):
+                self.websocketDidDisconnect(error: error)
+            }
         }
     }
 
@@ -741,32 +807,4 @@ extension SocketEngine {
 
 enum EngineError: Error {
     case canceled
-}
-
-extension SocketEngine {
-    /// Delegate method for WebSocketDelegate.
-    ///
-    /// - Parameters:
-    ///   - event: WS Event
-    ///   - _:
-    public func didReceive(event: Starscream.WebSocketEvent, client: Starscream.WebSocketClient) {
-        switch event {
-        case let .connected(headers):
-            wsConnected = true
-            self.client?.engineDidWebsocketUpgrade(headers: headers)
-            websocketDidConnect()
-        case .cancelled:
-            wsConnected = false
-            websocketDidDisconnect(error: EngineError.canceled)
-        case .disconnected(_, _):
-            wsConnected = false
-            websocketDidDisconnect(error: nil)
-        case let .text(msg):
-            parseEngineMessage(msg)
-        case let .binary(data):
-            parseEngineData(data)
-        case _:
-            break
-        }
-    }
 }
