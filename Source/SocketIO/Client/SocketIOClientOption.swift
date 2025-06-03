@@ -113,6 +113,8 @@ public enum SocketIOClientOption : ClientOption {
     /// The version of socket.io being used. This should match the server version. Default is 3.
     case version(SocketIOVersion)
 
+    case socks5Proxy((host: String, port: Int)?)
+
     // MARK: Properties
 
     /// The description of this option.
@@ -166,6 +168,8 @@ public enum SocketIOClientOption : ClientOption {
             description = "customEngine"
         case .version:
             description = "version"
+        case .socks5Proxy:
+            description = "socks5Proxy"
         }
 
         return description
@@ -221,6 +225,8 @@ public enum SocketIOClientOption : ClientOption {
             value = enable
         case let.version(versionNum):
             value = versionNum
+        case let .socks5Proxy(proxy):
+            value = proxy as Any
         }
 
         return value

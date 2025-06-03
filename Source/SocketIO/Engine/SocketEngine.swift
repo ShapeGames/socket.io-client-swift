@@ -22,6 +22,7 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //  THE SOFTWARE.
 
+import Network
 import Dispatch
 import Foundation
 
@@ -155,6 +156,20 @@ open class SocketEngine: NSObject, URLSessionWebSocketDelegate, URLSessionDelega
     private var secure = false
 //    private var certPinner: CertificatePinning?
     private var selfSigned = false
+    private var socks5Proxy: (host: String, port: Int)?
+
+    private var urlSessionConfiguration: URLSessionConfiguration {
+        let config = URLSessionConfiguration.default
+        if #available(iOS 17.0, *), let socks5Proxy {
+            let socksv5Proxy = NWEndpoint.hostPort(
+                host: NWEndpoint.Host(socks5Proxy.host),
+                port: NWEndpoint.Port("\(socks5Proxy.port)")!
+            )
+            let proxyConfig = ProxyConfiguration(socksv5Proxy: socksv5Proxy)
+            config.proxyConfigurations = [proxyConfig]
+        }
+        return config
+    }
 
     // MARK: Initializers
 
@@ -315,7 +330,7 @@ open class SocketEngine: NSObject, URLSessionWebSocketDelegate, URLSessionDelega
         )
 
         let wsSession = Foundation.URLSession(
-            configuration: .default,
+            configuration: urlSessionConfiguration,
             delegate: self,
             delegateQueue: .current
         )
@@ -574,7 +589,7 @@ open class SocketEngine: NSObject, URLSessionWebSocketDelegate, URLSessionDelega
         polling = true
         probing = false
         invalidated = false
-        session = Foundation.URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: queue)
+        session = Foundation.URLSession(configuration: urlSessionConfiguration, delegate: sessionDelegate, delegateQueue: queue)
         sid = ""
         waitingForPoll = false
         waitingForPost = false
@@ -644,6 +659,8 @@ open class SocketEngine: NSObject, URLSessionWebSocketDelegate, URLSessionDelega
                 self.useCustomEngine = enable
             case let .version(num):
                 version = num
+            case let .socks5Proxy(proxy):
+                socks5Proxy = proxy
             default:
                 continue
             }
